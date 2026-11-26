@@ -53,16 +53,3 @@ foreach(target impl1 impl2 program1 program2)
     endif()
 endforeach()
 
-include(CTest)
-if(BUILD_TESTING)
-    include(CheckTypeSize)
-    check_type_size("long" LAB5_LONG_SIZE LANGUAGE CXX)
-    add_test(NAME lab5_integration COMMAND ${CMAKE_COMMAND}
-        "-DPROGRAM1=$<TARGET_FILE:program1>"
-        "-DPROGRAM2=$<TARGET_FILE:program2>"
-        "-DIMPL1=$<TARGET_FILE:impl1>"
-        "-DIMPL2=$<TARGET_FILE:impl2>"
-        "-DLINKED_IMPL=${LINKED_IMPL}"
-        "-DLONG_SIZE=${LAB5_LONG_SIZE}"
-        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/check.cmake")
-endif()

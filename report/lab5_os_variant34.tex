@@ -1,0 +1,422 @@
+% Compile with XeLaTeX (twice) or Tectonic. UTF-8 source.
+% Standalone document: no external images or source files are required.
+\documentclass[12pt,a4paper,oneside]{article}
+\usepackage{fontspec}
+\setmainfont{Times New Roman}
+\setmonofont{Courier New}
+\usepackage[english,russian]{babel}
+\usepackage{geometry}
+\geometry{left=2.54cm,right=2.54cm,top=2.54cm,bottom=2.54cm}
+\usepackage{amsmath,array,tabularx,booktabs}
+\usepackage{listings,xcolor,hyperref,enumitem,titlesec}
+\titleformat*{\section}{\large\bfseries}
+\titleformat*{\subsection}{\normalsize\bfseries}
+\setcounter{secnumdepth}{0}
+\hypersetup{pdftitle={Отчёт по ЛР № 5. ОС. Вариант 34},
+  pdfauthor={А. Е. Пронина},hidelinks}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\setlist{nosep,leftmargin=1.5em}
+\sloppy
+\lstset{basicstyle=\fontsize{9}{10.5}\selectfont\ttfamily,frame=single,breaklines=true,
+  columns=fullflexible,numbers=left,numberstyle=\tiny,
+  showstringspaces=false,tabsize=4,keepspaces=true,
+  aboveskip=7pt,belowskip=7pt}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\newsection}[1]{\clearpage\section{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\begin{document}
+\begin{titlepage}
+\begin{center}
+\large МОСКОВСКИЙ АВИАЦИОННЫЙ ИНСТИТУТ\\
+(НАЦИОНАЛЬНЫЙ ИССЛЕДОВАТЕЛЬСКИЙ УНИВЕРСИТЕТ)
+\vspace{20pt}
+
+Институт №8 «Компьютерные науки и прикладная математика»\\
+Кафедра 806 «Вычислительная математика и программирование»
+\end{center}
+\vspace{65pt}
+\begin{center}
+\large\bfseries Отчет по лабораторной работе №5\\[7pt]
+по курсу «Операционные системы»
+\end{center}
+\vspace{40pt}
+\begin{center}
+\large\bfseries Тема: «Динамические библиотеки»\\[7pt]
+Вариант 34
+\end{center}
+\vfill
+\begin{flushright}
+\begin{tabular}{rl}
+Выполнила: & А.\,Е. Пронина \\
+Группа: & М8О-203БВ-25 \\
+Преподаватель: & Е.\,С. Миронов \\
+\end{tabular}
+\end{flushright}
+\vspace{40pt}
+\begin{center}Москва, 2026\end{center}
+\end{titlepage}
+\setcounter{page}{2}
+
+\section{Цель работы}
+Приобрести практические навыки создания динамических библиотек и их
+использования двумя способами: с заданием зависимости на этапе линковки
+и с явной загрузкой во время выполнения программы. Изучить общий
+интерфейс функций, получение их адресов и смену реализации без перезапуска.
+
+\section{Постановка задачи}
+Варианту 34 соответствуют функции №7 и №8 из задания.
+Требуется создать две динамические библиотеки с одинаковыми контрактами
+и разными реализациями.
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}p{0.30\linewidth}YY@{}}
+\toprule
+Контракт & Реализация 1 & Реализация 2\\
+\midrule
+\code{float Square(float A, float B)} &
+Площадь прямоугольника: $S=AB$ &
+Площадь прямоугольного треугольника: $S=AB/2$\\[5pt]
+\code{char* translation(long x)} &
+Двоичная запись числа & Троичная запись числа\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Программа №1 должна использовать одну из библиотек, выбранную при
+линковке. Программа №2 должна загружать библиотеки по относительным
+путям, получать адреса функций и переключать реализации по команде
+\code{0}. Обе программы предоставляют доступ к обеим функциям:
+\begin{itemize}
+\item \code{1 A B} --- вычислить площадь;
+\item \code{2 x} --- перевести целое число;
+\item \code{0} --- сменить библиотеку, только в программе №2;
+\item конец ввода (EOF) --- завершить работу.
+\end{itemize}
+
+Проект реализован на C++11 с CMake для Linux и Windows. Используются
+стандартные заголовки \code{iostream}, \code{cmath}, \code{climits}
+и системный заголовок \code{dlfcn.h} либо \code{windows.h}.
+
+\section{Основные теоретические сведения}
+Динамическая библиотека хранит исполняемый код в отдельном файле:
+\code{.so} в Linux или \code{.dll} в Windows. При задании зависимости
+на этапе линковки файл библиотеки всё равно нужен во время запуска:
+код библиотеки не включается в программу как при статической линковке.
+
+При явной загрузке программа самостоятельно открывает библиотеку,
+находит функции по именам и вызывает их через указатели. Общий
+заголовок задаёт API. Для бинарной совместимости также должны совпадать
+имена символов, типы, соглашение вызова и правила владения памятью.
+
+\newsection{Архитектура проекта и общий интерфейс}
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}p{0.30\linewidth}Y@{}}
+\toprule
+Файл & Назначение\\
+\midrule
+\code{include/api.h} & Контракты, экспорт функций, типы указателей.\\
+\code{src/impl1.cpp} & Прямоугольник и двоичная система.\\
+\code{src/impl2.cpp} & Треугольник и троичная система.\\
+\code{src/program1.cpp} & Обычные вызовы функций выбранной библиотеки.\\
+\code{src/program2.cpp} & Загрузка, поиск функций, смена и освобождение библиотеки.\\
+\code{src/console.h} & Обработка команд программы №2 через указатели.\\
+\code{CMakeLists.txt} & Сборка двух библиотек и двух программ.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Обе программы могут использовать один файл \code{impl1}, но работают
+в отдельных процессах. Команда \code{0} изменяет подключение только
+программы №2. Она одновременно выбирает обе функции из новой библиотеки;
+файлы библиотек на диске при этом не изменяются.
+
+\subsection{Экспорт и соглашение вызова}
+Ниже приведена платформенная часть \code{api.h}.
+\begin{lstlisting}[language=C++]
+#ifdef _WIN32
+#define LAB5_CALL __cdecl
+#if defined(LAB5_EXPORTS)
+#define LAB5_API __declspec(dllexport)
+#elif defined(LAB5_IMPORTS)
+#define LAB5_API __declspec(dllimport)
+#else
+#define LAB5_API
+#endif
+#else
+#define LAB5_CALL
+#define LAB5_API
+#endif
+\end{lstlisting}
+CMake определяет \code{LAB5_EXPORTS} при сборке DLL и
+\code{LAB5_IMPORTS} для программы №1. Для Linux эти макросы
+\code{LAB5_API} и \code{LAB5_CALL} заменяются пустым текстом.
+
+\subsection{Контракты функций}
+В C++ объявления помещены в блок \code{extern "C"}, чтобы экспортировать
+имена \code{Square} и \code{translation} без C++ декорирования.
+\begin{lstlisting}[language=C++]
+extern "C" {
+LAB5_API float LAB5_CALL Square(float A, float B);
+LAB5_API char* LAB5_CALL translation(long x);
+}
+typedef float (LAB5_CALL *SquareFunction)(float, float);
+typedef char* (LAB5_CALL *TranslationFunction)(long);
+\end{lstlisting}
+Типы указателей нужны программе №2.
+
+\newsection{Реализации функций библиотек}
+\subsection{Вычисление площади}
+В первой библиотеке функция возвращает произведение сторон:
+\begin{lstlisting}[language=C++]
+float LAB5_CALL Square(float A, float B) {
+    return A * B;
+}
+\end{lstlisting}
+Во второй библиотеке стороны рассматриваются как катеты:
+\begin{lstlisting}[language=C++]
+float LAB5_CALL Square(float A, float B) {
+    return A * B / 2.0f;
+}
+\end{lstlisting}
+Проверка конечности и неотрицательности сторон выполняется в программах.
+Нулевая сторона допустима. Точность результата ограничена типом
+\code{float}; конечность входных данных не исключает переполнение произведения.
+
+\subsection{Перевод в двоичную систему}
+Основная часть \code{translation} из \code{impl1.cpp}:
+\begin{lstlisting}[language=C++]
+char* LAB5_CALL translation(long x) {
+    static char buffer[sizeof(long) * CHAR_BIT + 2];
+    int position = sizeof(buffer) - 1;
+    buffer[position] = '\0';
+    unsigned long number = static_cast<unsigned long>(x);
+    if (x < 0) number = 0 - number;
+    do {
+        buffer[--position] = '0' + number % 2;
+        number /= 2;
+    } while (number != 0);
+    if (x < 0) {
+        buffer[--position] = '-';
+    }
+    return buffer + position;
+}
+\end{lstlisting}
+Остатки от деления записываются справа налево. В \code{impl2.cpp}
+вместо \verb|% 2| и \code{/= 2} используются \verb|% 3| и \code{/= 3}.
+Цикл \code{do ... while} обеспечивает результат \code{"0"} для нуля.
+Беззнаковая арифметика корректно обрабатывает модуль \code{LONG_MIN}.
+
+Если \code{long} занимает $N$ бит, достаточно не более $N$ двоичных
+цифр, одного минуса и завершающего нуля. Поэтому массив из $N+2$
+символов не переполняется; для троичной системы нужно не больше места.
+Возвращается адрес начала заполненной части массива.
+
+Массив принадлежит библиотеке. Его нельзя освобождать и использовать
+после выгрузки библиотеки; следующий вызов той же функции перезаписывает
+результат. Решение рассчитано на однопоточную работу. Время перевода
+пропорционально числу цифр, дополнительная память ограничена размером буфера.
+
+\newsection{Два способа вызова функций}
+\subsection{Программа №1: связь при линковке}
+Зависимость задаётся в CMake через \code{target_link_libraries}.
+В программе используются обычные вызовы, например:
+\begin{lstlisting}[language=C++]
+std::cout << Square(A, B) << '\n';
+std::cout << translation(x) << '\n';
+\end{lstlisting}
+При запуске ОС загружает выбранную DLL/SO. По умолчанию используется
+\code{impl1}; настройка \code{LINKED_IMPL=2} выбирает \code{impl2}
+при новой сборке. Команда \code{0} в программе №1 не поддерживается.
+
+\subsection{Программа №2: загрузка во время работы}
+Для выбранной библиотеки хранятся дескриптор и адреса обеих функций:
+\begin{lstlisting}[language=C++]
+struct Library {
+    LibraryHandle handle = nullptr;
+    SquareFunction square = nullptr;
+    TranslationFunction translate = nullptr;
+};
+\end{lstlisting}
+В Windows тип \code{LibraryHandle} обозначает \code{HMODULE},
+в Linux --- \code{void*}. Функция \code{open_library} открывает файл
+и заполняет все три поля. Пути задаются относительно рабочего каталога:
+\begin{lstlisting}[language=C++]
+const char* paths[] = {"./" LAB5_LIBRARY1,
+                       "./" LAB5_LIBRARY2};
+\end{lstlisting}
+Точные имена файлов передаются через CMake с помощью
+\code{$<TARGET_FILE_NAME:impl1>} и аналогичного выражения для \code{impl2}.
+
+\subsection{Загрузка в Linux}
+Ключевые операции \code{open_library} приведены ниже; между ними в
+исходнике проверяются результаты и освобождаются ресурсы при ошибке.
+\begin{lstlisting}[language=C++]
+library.handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+dlerror();
+library.square = reinterpret_cast<SquareFunction>(
+    dlsym(library.handle, "Square"));
+const char* error = dlerror();
+dlerror();
+library.translate = reinterpret_cast<TranslationFunction>(
+    dlsym(library.handle, "translation"));
+error = dlerror();
+\end{lstlisting}
+\code{RTLD_NOW} требует разрешить необходимые символы до возврата из
+\code{dlopen}; \code{RTLD_LOCAL} ограничивает видимость символов
+для последующих загрузок. Перед \code{dlsym} сбрасывается прежняя ошибка,
+после вызова проверяется \code{dlerror}. Тип указателя должен точно
+соответствовать контракту функции.
+
+\newsection{Загрузка в Windows и переключение реализации}
+В Windows применяются другие функции ОС. Основные операции:
+\begin{lstlisting}[language=C++]
+library.handle = LoadLibraryA(path);
+library.square = reinterpret_cast<SquareFunction>(
+    GetProcAddress(library.handle, "Square"));
+library.translate = reinterpret_cast<TranslationFunction>(
+    GetProcAddress(library.handle, "translation"));
+\end{lstlisting}
+После каждого вызова проверяется результат. При ошибке сразу читается
+\code{GetLastError}; если библиотека уже открыта, она освобождается.
+В проекте используются относительные пути с ASCII-именами библиотек.
+
+\subsection{Алгоритм команды 0}
+При запуске \code{active=0}, то есть выбрана \code{impl1}. Другая
+реализация определяется выражением \code{1 - active}. Основная часть
+обработки команды из \code{program2.cpp}:
+\begin{lstlisting}[language=C++]
+int next = 1 - active;
+Library replacement;
+if (!open_library(paths[next], replacement)) {
+    std::cerr
+        << "Switch failed; current library remains active\n";
+    continue;
+}
+Library previous = current;
+current = replacement;
+active = next;
+if (!close_library(previous)) {
+    result = 1;
+    break;
+}
+std::cout << "Library " << active + 1 << '\n';
+\end{lstlisting}
+Сначала загружается новая библиотека и проверяются обе функции.
+Только после успеха заменяются указатели и освобождается старый
+дескриптор. Если новая библиотека или нужный символ не найдены,
+текущая реализация остаётся доступной.
+
+\subsection{Вызовы и освобождение ресурсов}
+Функция \code{execute_command} получает \code{current.square} и
+\code{current.translate}. Она читает аргументы и вызывает выбранную
+функцию через указатель. Переключение затрагивает обе функции одновременно.
+
+\code{close_library} вызывает \code{FreeLibrary} в Windows либо
+\code{dlclose} в Linux, проверяет результат и обнуляет поля структуры.
+После выгрузки прежние указатели не используются. При выходе
+освобождается активная библиотека.
+
+Ошибочные аргументы приводят к завершению с кодом 1. Неизвестная числовая
+команда выводит сообщение и позволяет продолжить. EOF завершает работу
+штатно; в Windows его можно передать сочетанием Ctrl+Z, затем Enter,
+в Linux --- Ctrl+D на пустой строке.
+
+\newsection{Организация сборки и запуск}
+Основные цели CMake (часть настроек здесь опущена):
+\begin{lstlisting}[language={}]
+add_library(impl1 SHARED src/impl1.cpp)
+add_library(impl2 SHARED src/impl2.cpp)
+foreach(library impl1 impl2)
+    target_include_directories(${library} PUBLIC include)
+    target_compile_definitions(${library} PRIVATE LAB5_EXPORTS)
+endforeach()
+
+add_executable(program1 src/program1.cpp)
+target_compile_definitions(program1 PRIVATE LAB5_IMPORTS)
+target_link_libraries(program1 PRIVATE impl${LINKED_IMPL})
+
+add_executable(program2 src/program2.cpp)
+target_include_directories(program2 PRIVATE include)
+add_dependencies(program2 impl1 impl2)
+\end{lstlisting}
+\code{SHARED} создаёт динамические библиотеки; в Unix CMake обеспечивает
+позиционно независимый код. \code{add_dependencies} задаёт порядок сборки,
+но не связывает программу №2 с реализациями. Для Linux/POSIX при необходимости
+подключается библиотека загрузчика через \code{CMAKE_DL_LIBS}.
+
+\subsection{Linux}
+Команды выполняются из каталога \code{OS_lab5}:
+\begin{lstlisting}[language=bash]
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+cd build/bin
+./program1
+# Finish program1 before starting program2.
+./program2
+\end{lstlisting}
+Для программы №1 задан путь поиска \code{$ORIGIN}, то есть каталог
+исполняемого файла. Программа №2 использует относительные пути, поэтому
+запускается из \code{build/bin}.
+
+
+\newsection{Контрольные примеры и анализ способов подключения}
+В проекте предусмотрены сборка и запуск на Linux, а также платформенная
+ветка Windows. Запуск и тестирование на Windows не проводились.
+
+\subsection{Вычисления и смена реализации}
+В таблице приведены контрольные команды программы №2 и ожидаемые результаты.
+Начальное меню опущено; сначала активна \code{impl1}.
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}p{0.23\linewidth}p{0.25\linewidth}Y@{}}
+\toprule
+Ввод & Ожидаемый вывод & Пояснение\\
+\midrule
+\code{1 3 4} & \code{12} & Площадь прямоугольника.\\
+\code{2 10} & \code{1010} & Двоичная запись.\\
+\code{2 0} & \code{0} & Обработка нуля.\\
+\code{2 -10} & \code{-1010} & Отрицательное число.\\
+\code{0} & \code{Library 2} & Переход к \code{impl2}.\\
+\code{1 3 4} & \code{6} & Площадь треугольника.\\
+\code{2 10} & \code{101} & Троичная запись.\\
+\code{2 -10} & \code{-101} & Отрицательное число.\\
+\code{0} & \code{Library 1} & Возврат к \code{impl1}.\\
+\code{1 3 4} & \code{12} & Снова прямоугольник.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+Для варианта 34 результаты разных реализаций намеренно различаются:
+меняются фигура и основание системы счисления.
+
+
+\subsection{Сравнение способов подключения}
+\begin{center}
+\footnotesize
+\begin{tabularx}{\linewidth}{@{}p{0.26\linewidth}YY@{}}
+\toprule
+Свойство & Программа №1 & Программа №2\\
+\midrule
+Выбор реализации & При линковке. & Во время выполнения.\\[2pt]
+Вызов функции & По обычному объявлению из заголовка. & Через указатель,
+полученный по имени символа.\\[2pt]
+Загрузка файла & Автоматически загрузчиком ОС. & Явно через
+\code{dlopen} или \code{LoadLibraryA}.\\[2pt]
+Отсутствие библиотеки & Загрузчик не запускает программу при отсутствии
+обязательной DLL/SO. & Обрабатывается программой; при неудачной смене
+сохраняется старая реализация.\\[2pt]
+Смена без перезапуска & Не предусмотрена. & Команда \code{0}.\\[2pt]
+Сложность & Меньше служебного кода. & Нужны проверка символов,
+хранение указателей и освобождение дескрипторов.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Вывод}
+Созданы две библиотеки с общим C ABI и две программы на C++.
+Связь при линковке упрощает вызовы функций. Явная загрузка позволяет
+сменить обе реализации без перезапуска, но требует проверки ошибок
+и управления временем жизни библиотеки и указателей.
+
+\end{document}
